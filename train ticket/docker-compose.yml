@@ -1,0 +1,1380 @@
+networks:
+  my-network:
+    driver: bridge
+services:
+  nacos:
+    environment:
+      MODE: standalone
+      NACOS_AUTH_ENABLE: 'false'
+    healthcheck:
+      interval: 10s
+      retries: 30
+      test:
+      - CMD
+      - curl
+      - -fs
+      - http://localhost:8848/nacos/v1/console/health/readiness
+      timeout: 5s
+    image: nacos/nacos-server:v2.2.3-slim
+    networks:
+    - my-network
+    ports:
+    - 8848:8848
+  rabbitmq:
+    environment:
+      RABBITMQ_DEFAULT_PASS: rabbit
+      RABBITMQ_DEFAULT_USER: rabbit
+    healthcheck:
+      interval: 10s
+      retries: 20
+      test:
+      - CMD
+      - rabbitmq-diagnostics
+      - -q
+      - ping
+      timeout: 5s
+    image: rabbitmq:3-management
+    networks:
+    - my-network
+    ports:
+    - 5672:5672
+    - 15672:15672
+  redis:
+    environment: {}
+    image: redis
+    networks:
+    - my-network
+    ports:
+    - 6379:6379
+  ts-account-mongo:
+    environment: {}
+    image: mongo
+    networks:
+    - my-network
+  ts-admin-basic-info-service:
+    build:
+      context: .
+      dockerfile: ts-admin-basic-info-service/Dockerfile
+    depends_on:
+      nacos:
+        condition: service_healthy
+    environment:
+      NACOS_ADDRS: nacos:8848
+    image: ${IMG_REPO}/ts-admin-basic-info-service:${IMG_TAG}
+    networks:
+    - my-network
+    ports:
+    - 18767:18767
+    restart: always
+  ts-admin-order-service:
+    build:
+      context: .
+      dockerfile: ts-admin-order-service/Dockerfile
+    depends_on:
+      nacos:
+        condition: service_healthy
+    environment:
+      NACOS_ADDRS: nacos:8848
+    image: ${IMG_REPO}/ts-admin-order-service:${IMG_TAG}
+    networks:
+    - my-network
+    ports:
+    - 16112:16112
+    restart: always
+  ts-admin-route-service:
+    build:
+      context: .
+      dockerfile: ts-admin-route-service/Dockerfile
+    depends_on:
+      nacos:
+        condition: service_healthy
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+    environment:
+      NACOS_ADDRS: nacos:8848
+    image: ${IMG_REPO}/ts-admin-route-service:${IMG_TAG}
+    networks:
+    - my-network
+    ports:
+    - 16113:16113
+    restart: always
+  ts-admin-travel-service:
+    build:
+      context: .
+      dockerfile: ts-admin-travel-service/Dockerfile
+    depends_on:
+      nacos:
+        condition: service_healthy
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+    environment:
+      NACOS_ADDRS: nacos:8848
+    image: ${IMG_REPO}/ts-admin-travel-service:${IMG_TAG}
+    networks:
+    - my-network
+    ports:
+    - 16114:16114
+    restart: always
+  ts-admin-user-service:
+    build:
+      context: .
+      dockerfile: ts-admin-user-service/Dockerfile
+    depends_on:
+      nacos:
+        condition: service_healthy
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+    environment:
+      NACOS_ADDRS: nacos:8848
+    image: ${IMG_REPO}/ts-admin-user-service:${IMG_TAG}
+    networks:
+    - my-network
+    ports:
+    - 16115:16115
+    restart: always
+  ts-assurance-mysql:
+    environment:
+      MYSQL_DATABASE: ts
+      MYSQL_ROOT_PASSWORD: Abcd1234#
+    healthcheck:
+      interval: 5s
+      retries: 20
+      test:
+      - CMD
+      - mysqladmin
+      - ping
+      - -h
+      - localhost
+      - -pAbcd1234#
+      timeout: 3s
+    image: mysql:5.7
+    networks:
+    - my-network
+  ts-assurance-service:
+    build:
+      context: .
+      dockerfile: ts-assurance-service/Dockerfile
+    depends_on:
+      nacos:
+        condition: service_healthy
+      ts-assurance-mysql:
+        condition: service_healthy
+    environment:
+      ASSURANCE_MYSQL_HOST: ts-assurance-mysql
+      MYSQL_PASSWORD: Abcd1234#
+      MYSQL_USER: root
+      NACOS_ADDRS: nacos:8848
+    image: ${IMG_REPO}/ts-assurance-service:${IMG_TAG}
+    networks:
+    - my-network
+    ports:
+    - 18790:18790
+    restart: always
+  ts-auth-mongo:
+    environment: {}
+    image: mongo
+    networks:
+    - my-network
+  ts-auth-mysql:
+    environment:
+      MYSQL_DATABASE: ts-auth-mysql
+      MYSQL_ROOT_PASSWORD: Abcd1234#
+    healthcheck:
+      interval: 5s
+      retries: 20
+      test:
+      - CMD
+      - mysqladmin
+      - ping
+      - -h
+      - localhost
+      - -pAbcd1234#
+      timeout: 3s
+    image: mysql:5.7
+    networks:
+    - my-network
+  ts-auth-service:
+    build:
+      context: .
+      dockerfile: ts-auth-service/Dockerfile
+    depends_on:
+      nacos:
+        condition: service_healthy
+      ts-auth-mysql:
+        condition: service_healthy
+    environment:
+      AUTH_MYSQL_HOST: ts-auth-mysql
+      MYSQL_PASSWORD: Abcd1234#
+      MYSQL_USER: root
+      NACOS_ADDRS: nacos:8848
+    image: ${IMG_REPO}/ts-auth-service:${IMG_TAG}
+    networks:
+    - my-network
+    ports:
+    - 12340:12340
+    restart: always
+  ts-avatar-service:
+    depends_on:
+      nacos:
+        condition: service_healthy
+    environment:
+      NACOS_ADDRS: nacos:8848
+    image: ${NAMESPACE}/ts-avatar-service:${TAG}
+    networks:
+    - my-network
+    ports:
+    - 17001:17001
+    restart: always
+  ts-basic-service:
+    build:
+      context: .
+      dockerfile: ts-basic-service/Dockerfile
+    depends_on:
+      nacos:
+        condition: service_healthy
+    environment:
+      NACOS_ADDRS: nacos:8848
+    image: ${IMG_REPO}/ts-basic-service:${IMG_TAG}
+    networks:
+    - my-network
+    ports:
+    - 15680:15680
+    restart: always
+  ts-cancel-service:
+    build:
+      context: .
+      dockerfile: ts-cancel-service/Dockerfile
+    depends_on:
+      nacos:
+        condition: service_healthy
+    environment:
+      NACOS_ADDRS: nacos:8848
+    image: ${IMG_REPO}/ts-cancel-service:${IMG_TAG}
+    networks:
+    - my-network
+    ports:
+    - 18885:18885
+    restart: always
+  ts-config-mysql:
+    environment:
+      MYSQL_DATABASE: ts
+      MYSQL_ROOT_PASSWORD: Abcd1234#
+    healthcheck:
+      interval: 5s
+      retries: 20
+      test:
+      - CMD
+      - mysqladmin
+      - ping
+      - -h
+      - localhost
+      - -pAbcd1234#
+      timeout: 3s
+    image: mysql:5.7
+    networks:
+    - my-network
+  ts-config-service:
+    build:
+      context: .
+      dockerfile: ts-config-service/Dockerfile
+    depends_on:
+      nacos:
+        condition: service_healthy
+      ts-config-mysql:
+        condition: service_healthy
+    environment:
+      CONFIG_MYSQL_HOST: ts-config-mysql
+      MYSQL_PASSWORD: Abcd1234#
+      MYSQL_USER: root
+      NACOS_ADDRS: nacos:8848
+    image: ${IMG_REPO}/ts-config-service:${IMG_TAG}
+    networks:
+    - my-network
+    ports:
+    - 15679:15679
+    restart: always
+  ts-consign-mysql:
+    environment:
+      MYSQL_DATABASE: ts
+      MYSQL_ROOT_PASSWORD: Abcd1234#
+    healthcheck:
+      interval: 5s
+      retries: 20
+      test:
+      - CMD
+      - mysqladmin
+      - ping
+      - -h
+      - localhost
+      - -pAbcd1234#
+      timeout: 3s
+    image: mysql:5.7
+    networks:
+    - my-network
+  ts-consign-price-mysql:
+    environment:
+      MYSQL_DATABASE: ts
+      MYSQL_ROOT_PASSWORD: Abcd1234#
+    healthcheck:
+      interval: 5s
+      retries: 20
+      test:
+      - CMD
+      - mysqladmin
+      - ping
+      - -h
+      - localhost
+      - -pAbcd1234#
+      timeout: 3s
+    image: mysql:5.7
+    networks:
+    - my-network
+  ts-consign-price-service:
+    build:
+      context: .
+      dockerfile: ts-consign-price-service/Dockerfile
+    depends_on:
+      nacos:
+        condition: service_healthy
+      ts-consign-price-mysql:
+        condition: service_healthy
+    environment:
+      CONSIGN_PRICE_MYSQL_HOST: ts-consign-price-mysql
+      MYSQL_PASSWORD: Abcd1234#
+      MYSQL_USER: root
+      NACOS_ADDRS: nacos:8848
+    image: ${IMG_REPO}/ts-consign-price-service:${IMG_TAG}
+    networks:
+    - my-network
+    ports:
+    - 16110:16110
+    restart: always
+  ts-consign-service:
+    build:
+      context: .
+      dockerfile: ts-consign-service/Dockerfile
+    depends_on:
+      nacos:
+        condition: service_healthy
+      ts-consign-mysql:
+        condition: service_healthy
+    environment:
+      CONSIGN_MYSQL_HOST: ts-consign-mysql
+      MYSQL_PASSWORD: Abcd1234#
+      MYSQL_USER: root
+      NACOS_ADDRS: nacos:8848
+    image: ${IMG_REPO}/ts-consign-service:${IMG_TAG}
+    networks:
+    - my-network
+    ports:
+    - 16111:16111
+    restart: always
+  ts-contacts-mysql:
+    environment:
+      MYSQL_DATABASE: ts
+      MYSQL_ROOT_PASSWORD: Abcd1234#
+    healthcheck:
+      interval: 5s
+      retries: 20
+      test:
+      - CMD
+      - mysqladmin
+      - ping
+      - -h
+      - localhost
+      - -pAbcd1234#
+      timeout: 3s
+    image: mysql:5.7
+    networks:
+    - my-network
+  ts-contacts-service:
+    build:
+      context: .
+      dockerfile: ts-contacts-service/Dockerfile
+    depends_on:
+      nacos:
+        condition: service_healthy
+      ts-contacts-mysql:
+        condition: service_healthy
+    environment:
+      CONTACTS_MYSQL_HOST: ts-contacts-mysql
+      MYSQL_PASSWORD: Abcd1234#
+      MYSQL_USER: root
+      NACOS_ADDRS: nacos:8848
+    image: ${IMG_REPO}/ts-contacts-service:${IMG_TAG}
+    networks:
+    - my-network
+    ports:
+    - 12347:12347
+    restart: always
+  ts-delivery-mysql:
+    environment:
+      MYSQL_DATABASE: ts
+      MYSQL_ROOT_PASSWORD: Abcd1234#
+    healthcheck:
+      interval: 5s
+      retries: 20
+      test:
+      - CMD
+      - mysqladmin
+      - ping
+      - -h
+      - localhost
+      - -pAbcd1234#
+      timeout: 3s
+    image: mysql:5.7
+    networks:
+    - my-network
+  ts-delivery-service:
+    build:
+      context: .
+      dockerfile: ts-delivery-service/Dockerfile
+    depends_on:
+      nacos:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      ts-delivery-mysql:
+        condition: service_healthy
+    environment:
+      DELIVERY_MYSQL_HOST: ts-delivery-mysql
+      MYSQL_PASSWORD: Abcd1234#
+      MYSQL_USER: root
+      NACOS_ADDRS: nacos:8848
+      rabbitmq_host: rabbitmq
+      spring.rabbitmq.host: rabbitmq
+    image: ${IMG_REPO}/ts-delivery-service:${IMG_TAG}
+    networks:
+    - my-network
+    ports:
+    - 18808:18808
+    restart: always
+  ts-execute-service:
+    build:
+      context: .
+      dockerfile: ts-execute-service/Dockerfile
+    depends_on:
+      nacos:
+        condition: service_healthy
+    environment:
+      NACOS_ADDRS: nacos:8848
+    image: ${IMG_REPO}/ts-execute-service:${IMG_TAG}
+    networks:
+    - my-network
+    ports:
+    - 12386:12386
+    restart: always
+  ts-food-delivery-mysql:
+    environment:
+      MYSQL_DATABASE: ts
+      MYSQL_ROOT_PASSWORD: Abcd1234#
+    healthcheck:
+      interval: 5s
+      retries: 20
+      test:
+      - CMD
+      - mysqladmin
+      - ping
+      - -h
+      - localhost
+      - -pAbcd1234#
+      timeout: 3s
+    image: mysql:5.7
+    networks:
+    - my-network
+  ts-food-delivery-service:
+    build:
+      context: .
+      dockerfile: ts-food-delivery-service/Dockerfile
+    depends_on:
+      nacos:
+        condition: service_healthy
+      ts-food-delivery-mysql:
+        condition: service_healthy
+    environment:
+      FOOD_DELIVERY_MYSQL_HOST: ts-food-delivery-mysql
+      MYSQL_PASSWORD: Abcd1234#
+      MYSQL_USER: root
+      NACOS_ADDRS: nacos:8848
+    image: ${IMG_REPO}/ts-food-delivery-service:${IMG_TAG}
+    networks:
+    - my-network
+    ports:
+    - 18957:18957
+    restart: always
+  ts-food-mysql:
+    environment:
+      MYSQL_DATABASE: ts
+      MYSQL_ROOT_PASSWORD: Abcd1234#
+    healthcheck:
+      interval: 5s
+      retries: 20
+      test:
+      - CMD
+      - mysqladmin
+      - ping
+      - -h
+      - localhost
+      - -pAbcd1234#
+      timeout: 3s
+    image: mysql:5.7
+    networks:
+    - my-network
+  ts-food-service:
+    build:
+      context: .
+      dockerfile: ts-food-service/Dockerfile
+    depends_on:
+      nacos:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      ts-food-mysql:
+        condition: service_healthy
+    environment:
+      FOOD_MYSQL_HOST: ts-food-mysql
+      MYSQL_PASSWORD: Abcd1234#
+      MYSQL_USER: root
+      NACOS_ADDRS: nacos:8848
+      rabbitmq_host: rabbitmq
+      spring.rabbitmq.host: rabbitmq
+    image: ${IMG_REPO}/ts-food-service:${IMG_TAG}
+    networks:
+    - my-network
+    ports:
+    - 18856:18856
+    restart: always
+  ts-gateway-service:
+    build:
+      context: .
+      dockerfile: ts-gateway-service/Dockerfile
+    depends_on:
+      nacos:
+        condition: service_healthy
+    environment:
+      NACOS_ADDRS: nacos:8848
+    image: ${IMG_REPO}/ts-gateway-service:${IMG_TAG}
+    networks:
+    - my-network
+    ports:
+    - 18888:18888
+    restart: always
+  ts-inside-payment-mysql:
+    environment:
+      MYSQL_DATABASE: ts
+      MYSQL_ROOT_PASSWORD: Abcd1234#
+    healthcheck:
+      interval: 5s
+      retries: 20
+      test:
+      - CMD
+      - mysqladmin
+      - ping
+      - -h
+      - localhost
+      - -pAbcd1234#
+      timeout: 3s
+    image: mysql:5.7
+    networks:
+    - my-network
+  ts-inside-payment-service:
+    build:
+      context: .
+      dockerfile: ts-inside-payment-service/Dockerfile
+    depends_on:
+      nacos:
+        condition: service_healthy
+      ts-inside-payment-mysql:
+        condition: service_healthy
+    environment:
+      INSIDE_PAYMENT_MYSQL_HOST: ts-inside-payment-mysql
+      MYSQL_PASSWORD: Abcd1234#
+      MYSQL_USER: root
+      NACOS_ADDRS: nacos:8848
+    image: ${IMG_REPO}/ts-inside-payment-service:${IMG_TAG}
+    networks:
+    - my-network
+    ports:
+    - 18673:18673
+    restart: always
+  ts-notification-mysql:
+    environment:
+      MYSQL_DATABASE: ts
+      MYSQL_ROOT_PASSWORD: Abcd1234#
+    healthcheck:
+      interval: 5s
+      retries: 20
+      test:
+      - CMD
+      - mysqladmin
+      - ping
+      - -h
+      - localhost
+      - -pAbcd1234#
+      timeout: 3s
+    image: mysql:5.7
+    networks:
+    - my-network
+  ts-notification-service:
+    build:
+      context: .
+      dockerfile: ts-notification-service/Dockerfile
+    depends_on:
+      nacos:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      ts-notification-mysql:
+        condition: service_healthy
+    environment:
+      MYSQL_PASSWORD: Abcd1234#
+      MYSQL_USER: root
+      NACOS_ADDRS: nacos:8848
+      NOTIFICATION_MYSQL_HOST: ts-notification-mysql
+      rabbitmq_host: rabbitmq
+      spring.rabbitmq.host: rabbitmq
+    image: ${IMG_REPO}/ts-notification-service:${IMG_TAG}
+    networks:
+    - my-network
+    ports:
+    - 17853:17853
+    restart: always
+  ts-order-mysql:
+    environment:
+      MYSQL_DATABASE: ts
+      MYSQL_ROOT_PASSWORD: Abcd1234#
+    healthcheck:
+      interval: 5s
+      retries: 20
+      test:
+      - CMD
+      - mysqladmin
+      - ping
+      - -h
+      - localhost
+      - -pAbcd1234#
+      timeout: 3s
+    image: mysql:5.7
+    networks:
+    - my-network
+  ts-order-other-mysql:
+    environment:
+      MYSQL_DATABASE: ts
+      MYSQL_ROOT_PASSWORD: Abcd1234#
+    healthcheck:
+      interval: 5s
+      retries: 20
+      test:
+      - CMD
+      - mysqladmin
+      - ping
+      - -h
+      - localhost
+      - -pAbcd1234#
+      timeout: 3s
+    image: mysql:5.7
+    networks:
+    - my-network
+  ts-order-other-service:
+    build:
+      context: .
+      dockerfile: ts-order-other-service/Dockerfile
+    depends_on:
+      nacos:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      ts-order-other-mysql:
+        condition: service_healthy
+    environment:
+      MYSQL_PASSWORD: Abcd1234#
+      MYSQL_USER: root
+      NACOS_ADDRS: nacos:8848
+      ORDER_OTHER_MYSQL_HOST: ts-order-other-mysql
+      rabbitmq_host: rabbitmq
+      spring.rabbitmq.host: rabbitmq
+    image: ${IMG_REPO}/ts-order-other-service:${IMG_TAG}
+    networks:
+    - my-network
+    ports:
+    - 12032:12032
+    restart: always
+  ts-order-service:
+    build:
+      context: .
+      dockerfile: ts-order-service/Dockerfile
+    depends_on:
+      nacos:
+        condition: service_healthy
+      ts-order-mysql:
+        condition: service_healthy
+    environment:
+      MYSQL_PASSWORD: Abcd1234#
+      MYSQL_USER: root
+      NACOS_ADDRS: nacos:8848
+      ORDER_MYSQL_HOST: ts-order-mysql
+    image: ${IMG_REPO}/ts-order-service:${IMG_TAG}
+    networks:
+    - my-network
+    ports:
+    - 12031:12031
+    restart: always
+  ts-payment-mysql:
+    environment:
+      MYSQL_DATABASE: ts
+      MYSQL_ROOT_PASSWORD: Abcd1234#
+    healthcheck:
+      interval: 5s
+      retries: 20
+      test:
+      - CMD
+      - mysqladmin
+      - ping
+      - -h
+      - localhost
+      - -pAbcd1234#
+      timeout: 3s
+    image: mysql:5.7
+    networks:
+    - my-network
+  ts-payment-service:
+    build:
+      context: .
+      dockerfile: ts-payment-service/Dockerfile
+    depends_on:
+      nacos:
+        condition: service_healthy
+      ts-payment-mysql:
+        condition: service_healthy
+    environment:
+      MYSQL_PASSWORD: Abcd1234#
+      MYSQL_USER: root
+      NACOS_ADDRS: nacos:8848
+      PAYMENT_MYSQL_HOST: ts-payment-mysql
+    image: ${IMG_REPO}/ts-payment-service:${IMG_TAG}
+    networks:
+    - my-network
+    ports:
+    - 19001:19001
+    restart: always
+  ts-preserve-other-service:
+    build:
+      context: .
+      dockerfile: ts-preserve-other-service/Dockerfile
+    depends_on:
+      nacos:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      NACOS_ADDRS: nacos:8848
+      rabbitmq_host: rabbitmq
+      spring.rabbitmq.host: rabbitmq
+    image: ${IMG_REPO}/ts-preserve-other-service:${IMG_TAG}
+    networks:
+    - my-network
+    ports:
+    - 14569:14569
+    restart: always
+  ts-preserve-service:
+    build:
+      context: .
+      dockerfile: ts-preserve-service/Dockerfile
+    depends_on:
+      nacos:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      NACOS_ADDRS: nacos:8848
+      rabbitmq_host: rabbitmq
+      spring.rabbitmq.host: rabbitmq
+    image: ${IMG_REPO}/ts-preserve-service:${IMG_TAG}
+    networks:
+    - my-network
+    ports:
+    - 14568:14568
+    restart: always
+  ts-price-mysql:
+    environment:
+      MYSQL_DATABASE: ts
+      MYSQL_ROOT_PASSWORD: Abcd1234#
+    healthcheck:
+      interval: 5s
+      retries: 20
+      test:
+      - CMD
+      - mysqladmin
+      - ping
+      - -h
+      - localhost
+      - -pAbcd1234#
+      timeout: 3s
+    image: mysql:5.7
+    networks:
+    - my-network
+  ts-price-service:
+    build:
+      context: .
+      dockerfile: ts-price-service/Dockerfile
+    depends_on:
+      nacos:
+        condition: service_healthy
+      ts-price-mysql:
+        condition: service_healthy
+    environment:
+      MYSQL_PASSWORD: Abcd1234#
+      MYSQL_USER: root
+      NACOS_ADDRS: nacos:8848
+      PRICE_MYSQL_HOST: ts-price-mysql
+    image: ${IMG_REPO}/ts-price-service:${IMG_TAG}
+    networks:
+    - my-network
+    ports:
+    - 16579:16579
+    restart: always
+  ts-rebook-mongo:
+    environment: {}
+    image: mongo
+    networks:
+    - my-network
+  ts-rebook-service:
+    build:
+      context: .
+      dockerfile: ts-rebook-service/Dockerfile
+    depends_on:
+      nacos:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      NACOS_ADDRS: nacos:8848
+      rabbitmq_host: rabbitmq
+      spring.rabbitmq.host: rabbitmq
+    image: ${IMG_REPO}/ts-rebook-service:${IMG_TAG}
+    networks:
+    - my-network
+    ports:
+    - 18886:18886
+    restart: always
+  ts-route-mysql:
+    environment:
+      MYSQL_DATABASE: ts
+      MYSQL_ROOT_PASSWORD: Abcd1234#
+    healthcheck:
+      interval: 5s
+      retries: 20
+      test:
+      - CMD
+      - mysqladmin
+      - ping
+      - -h
+      - localhost
+      - -pAbcd1234#
+      timeout: 3s
+    image: mysql:5.7
+    networks:
+    - my-network
+  ts-route-plan-service:
+    build:
+      context: .
+      dockerfile: ts-route-plan-service/Dockerfile
+    depends_on:
+      nacos:
+        condition: service_healthy
+    environment:
+      NACOS_ADDRS: nacos:8848
+    image: ${IMG_REPO}/ts-route-plan-service:${IMG_TAG}
+    networks:
+    - my-network
+    ports:
+    - 14578:14578
+    restart: always
+  ts-route-service:
+    build:
+      context: .
+      dockerfile: ts-route-service/Dockerfile
+    depends_on:
+      nacos:
+        condition: service_healthy
+      ts-route-mysql:
+        condition: service_healthy
+    environment:
+      MYSQL_PASSWORD: Abcd1234#
+      MYSQL_USER: root
+      NACOS_ADDRS: nacos:8848
+      ROUTE_MYSQL_HOST: ts-route-mysql
+    image: ${IMG_REPO}/ts-route-service:${IMG_TAG}
+    networks:
+    - my-network
+    ports:
+    - 11178:11178
+    restart: always
+  ts-seat-service:
+    build:
+      context: .
+      dockerfile: ts-seat-service/Dockerfile
+    depends_on:
+      nacos:
+        condition: service_healthy
+    environment:
+      NACOS_ADDRS: nacos:8848
+    image: ${IMG_REPO}/ts-seat-service:${IMG_TAG}
+    networks:
+    - my-network
+    ports:
+    - 18898:18898
+    restart: always
+  ts-security-mysql:
+    environment:
+      MYSQL_DATABASE: ts
+      MYSQL_ROOT_PASSWORD: Abcd1234#
+    healthcheck:
+      interval: 5s
+      retries: 20
+      test:
+      - CMD
+      - mysqladmin
+      - ping
+      - -h
+      - localhost
+      - -pAbcd1234#
+      timeout: 3s
+    image: mysql:5.7
+    networks:
+    - my-network
+  ts-security-service:
+    build:
+      context: .
+      dockerfile: ts-security-service/Dockerfile
+    depends_on:
+      nacos:
+        condition: service_healthy
+      ts-security-mysql:
+        condition: service_healthy
+    environment:
+      MYSQL_PASSWORD: Abcd1234#
+      MYSQL_USER: root
+      NACOS_ADDRS: nacos:8848
+      SECURITY_MYSQL_HOST: ts-security-mysql
+    image: ${IMG_REPO}/ts-security-service:${IMG_TAG}
+    networks:
+    - my-network
+    ports:
+    - 11188:11188
+    restart: always
+  ts-station-food-mysql:
+    environment:
+      MYSQL_DATABASE: ts
+      MYSQL_ROOT_PASSWORD: Abcd1234#
+    healthcheck:
+      interval: 5s
+      retries: 20
+      test:
+      - CMD
+      - mysqladmin
+      - ping
+      - -h
+      - localhost
+      - -pAbcd1234#
+      timeout: 3s
+    image: mysql:5.7
+    networks:
+    - my-network
+  ts-station-food-service:
+    build:
+      context: .
+      dockerfile: ts-station-food-service/Dockerfile
+    depends_on:
+      nacos:
+        condition: service_healthy
+      ts-station-food-mysql:
+        condition: service_healthy
+    environment:
+      MYSQL_PASSWORD: Abcd1234#
+      MYSQL_USER: root
+      NACOS_ADDRS: nacos:8848
+      STATION_FOOD_MYSQL_HOST: ts-station-food-mysql
+    image: ${IMG_REPO}/ts-station-food-service:${IMG_TAG}
+    networks:
+    - my-network
+    ports:
+    - 18855:18855
+    restart: always
+  ts-station-mysql:
+    environment:
+      MYSQL_DATABASE: ts
+      MYSQL_ROOT_PASSWORD: Abcd1234#
+    healthcheck:
+      interval: 5s
+      retries: 20
+      test:
+      - CMD
+      - mysqladmin
+      - ping
+      - -h
+      - localhost
+      - -pAbcd1234#
+      timeout: 3s
+    image: mysql:5.7
+    networks:
+    - my-network
+  ts-station-service:
+    build:
+      context: .
+      dockerfile: ts-station-service/Dockerfile
+    depends_on:
+      nacos:
+        condition: service_healthy
+      ts-station-mysql:
+        condition: service_healthy
+    environment:
+      MYSQL_PASSWORD: Abcd1234#
+      MYSQL_USER: root
+      NACOS_ADDRS: nacos:8848
+      STATION_MYSQL_HOST: ts-station-mysql
+    image: ${IMG_REPO}/ts-station-service:${IMG_TAG}
+    networks:
+    - my-network
+    ports:
+    - 12345:12345
+    restart: always
+  ts-ticket-office-mongo:
+    environment: {}
+    image: mongo
+    networks:
+    - my-network
+  ts-ticket-office-service:
+    build:
+      context: .
+      dockerfile: ts-ticket-office-service/Dockerfile
+    depends_on:
+      nacos:
+        condition: service_healthy
+    environment:
+      NACOS_ADDRS: nacos:8848
+    image: ${IMG_REPO}/ts-ticket-office-service:${IMG_TAG}
+    networks:
+    - my-network
+    ports:
+    - 16108:16108
+    restart: always
+  ts-train-food-mysql:
+    environment:
+      MYSQL_DATABASE: ts
+      MYSQL_ROOT_PASSWORD: Abcd1234#
+    healthcheck:
+      interval: 5s
+      retries: 20
+      test:
+      - CMD
+      - mysqladmin
+      - ping
+      - -h
+      - localhost
+      - -pAbcd1234#
+      timeout: 3s
+    image: mysql:5.7
+    networks:
+    - my-network
+  ts-train-food-service:
+    build:
+      context: .
+      dockerfile: ts-train-food-service/Dockerfile
+    depends_on:
+      nacos:
+        condition: service_healthy
+      ts-train-food-mysql:
+        condition: service_healthy
+    environment:
+      MYSQL_PASSWORD: Abcd1234#
+      MYSQL_USER: root
+      NACOS_ADDRS: nacos:8848
+      TRAIN_FOOD_MYSQL_HOST: ts-train-food-mysql
+    image: ${IMG_REPO}/ts-train-food-service:${IMG_TAG}
+    networks:
+    - my-network
+    ports:
+    - 19999:19999
+    restart: always
+  ts-train-mysql:
+    environment:
+      MYSQL_DATABASE: ts
+      MYSQL_ROOT_PASSWORD: Abcd1234#
+    healthcheck:
+      interval: 5s
+      retries: 20
+      test:
+      - CMD
+      - mysqladmin
+      - ping
+      - -h
+      - localhost
+      - -pAbcd1234#
+      timeout: 3s
+    image: mysql:5.7
+    networks:
+    - my-network
+  ts-train-service:
+    build:
+      context: .
+      dockerfile: ts-train-service/Dockerfile
+    depends_on:
+      nacos:
+        condition: service_healthy
+      ts-train-mysql:
+        condition: service_healthy
+    environment:
+      MYSQL_PASSWORD: Abcd1234#
+      MYSQL_USER: root
+      NACOS_ADDRS: nacos:8848
+      TRAIN_MYSQL_HOST: ts-train-mysql
+    image: ${IMG_REPO}/ts-train-service:${IMG_TAG}
+    networks:
+    - my-network
+    ports:
+    - 14567:14567
+    restart: always
+  ts-travel-mysql:
+    environment:
+      MYSQL_DATABASE: ts
+      MYSQL_ROOT_PASSWORD: Abcd1234#
+    healthcheck:
+      interval: 5s
+      retries: 20
+      test:
+      - CMD
+      - mysqladmin
+      - ping
+      - -h
+      - localhost
+      - -pAbcd1234#
+      timeout: 3s
+    image: mysql:5.7
+    networks:
+    - my-network
+  ts-travel-plan-service:
+    build:
+      context: .
+      dockerfile: ts-travel-plan-service/Dockerfile
+    depends_on:
+      nacos:
+        condition: service_healthy
+    environment:
+      NACOS_ADDRS: nacos:8848
+    image: ${IMG_REPO}/ts-travel-plan-service:${IMG_TAG}
+    networks:
+    - my-network
+    ports:
+    - 14322:14322
+    restart: always
+  ts-travel-service:
+    build:
+      context: .
+      dockerfile: ts-travel-service/Dockerfile
+    depends_on:
+      nacos:
+        condition: service_healthy
+      ts-travel-mysql:
+        condition: service_healthy
+    environment:
+      MYSQL_PASSWORD: Abcd1234#
+      MYSQL_USER: root
+      NACOS_ADDRS: nacos:8848
+      TRAVEL_MYSQL_HOST: ts-travel-mysql
+    image: ${IMG_REPO}/ts-travel-service:${IMG_TAG}
+    networks:
+    - my-network
+    ports:
+    - 12346:12346
+    restart: always
+  ts-travel2-mysql:
+    environment:
+      MYSQL_DATABASE: ts
+      MYSQL_ROOT_PASSWORD: Abcd1234#
+    healthcheck:
+      interval: 5s
+      retries: 20
+      test:
+      - CMD
+      - mysqladmin
+      - ping
+      - -h
+      - localhost
+      - -pAbcd1234#
+      timeout: 3s
+    image: mysql:5.7
+    networks:
+    - my-network
+  ts-travel2-service:
+    build:
+      context: .
+      dockerfile: ts-travel2-service/Dockerfile
+    depends_on:
+      nacos:
+        condition: service_healthy
+      ts-travel2-mysql:
+        condition: service_healthy
+    environment:
+      MYSQL_PASSWORD: Abcd1234#
+      MYSQL_USER: root
+      NACOS_ADDRS: nacos:8848
+      TRAVEL2_MYSQL_HOST: ts-travel2-mysql
+    image: ${IMG_REPO}/ts-travel2-service:${IMG_TAG}
+    networks:
+    - my-network
+    ports:
+    - 16346:16346
+    restart: always
+  ts-ui-dashboard:
+    build:
+      context: .
+      dockerfile: ts-ui-dashboard/Dockerfile
+    environment: {}
+    image: ${IMG_REPO}/ts-ui-dashboard:${IMG_TAG}
+    networks:
+    - my-network
+    ports:
+    - 8080:8080
+    restart: always
+  ts-user-mongo:
+    environment: {}
+    image: mongo
+    networks:
+    - my-network
+  ts-user-mysql:
+    environment:
+      MYSQL_DATABASE: ts-user-mysql
+      MYSQL_ROOT_PASSWORD: Abcd1234#
+    healthcheck:
+      interval: 5s
+      retries: 20
+      test:
+      - CMD
+      - mysqladmin
+      - ping
+      - -h
+      - localhost
+      - -pAbcd1234#
+      timeout: 3s
+    image: mysql:5.7
+    networks:
+    - my-network
+  ts-user-service:
+    build:
+      context: .
+      dockerfile: ts-user-service/Dockerfile
+    depends_on:
+      nacos:
+        condition: service_healthy
+      ts-user-mysql:
+        condition: service_healthy
+    environment:
+      MYSQL_PASSWORD: Abcd1234#
+      MYSQL_USER: root
+      NACOS_ADDRS: nacos:8848
+      USER_MYSQL_HOST: ts-user-mysql
+    image: ${IMG_REPO}/ts-user-service:${IMG_TAG}
+    networks:
+    - my-network
+    ports:
+    - 12342:12342
+    restart: always
+  ts-verification-code-service:
+    build:
+      context: .
+      dockerfile: ts-verification-code-service/Dockerfile
+    depends_on:
+      nacos:
+        condition: service_healthy
+    environment:
+      NACOS_ADDRS: nacos:8848
+    image: ${IMG_REPO}/ts-verification-code-service:${IMG_TAG}
+    networks:
+    - my-network
+    ports:
+    - 15678:15678
+    restart: always
+  ts-voucher-mysql:
+    environment:
+      MYSQL_DATABASE: ts-voucher-mysql
+      MYSQL_ROOT_PASSWORD: Abcd1234#
+    healthcheck:
+      interval: 5s
+      retries: 20
+      test:
+      - CMD
+      - mysqladmin
+      - ping
+      - -h
+      - localhost
+      - -pAbcd1234#
+      timeout: 3s
+    image: mysql:5.7
+    networks:
+    - my-network
+  ts-voucher-service:
+    build:
+      context: .
+      dockerfile: ts-voucher-service/Dockerfile
+    depends_on:
+      nacos:
+        condition: service_healthy
+      ts-voucher-mysql:
+        condition: service_healthy
+    environment:
+      NACOS_ADDRS: nacos:8848
+      VOUCHER_MYSQL_HOST: ts-voucher-mysql
+      VOUCHER_MYSQL_PASSWORD: Abcd1234#
+    image: ${IMG_REPO}/ts-voucher-service:${IMG_TAG}
+    networks:
+    - my-network
+    ports:
+    - 16101:16101
+    restart: always
+    volumes:
+    - /var/lib/mysql
+  ts-wait-order-mysql:
+    environment:
+      MYSQL_DATABASE: ts
+      MYSQL_ROOT_PASSWORD: Abcd1234#
+    healthcheck:
+      interval: 5s
+      retries: 20
+      test:
+      - CMD
+      - mysqladmin
+      - ping
+      - -h
+      - localhost
+      - -pAbcd1234#
+      timeout: 3s
+    image: mysql:5.7
+    networks:
+    - my-network
+  ts-wait-order-service:
+    build:
+      context: .
+      dockerfile: ts-wait-order-service/Dockerfile
+    depends_on:
+      nacos:
+        condition: service_healthy
+      ts-wait-order-mysql:
+        condition: service_healthy
+    environment:
+      MYSQL_PASSWORD: Abcd1234#
+      MYSQL_USER: root
+      NACOS_ADDRS: nacos:8848
+      WAIT_ORDER_MYSQL_HOST: ts-wait-order-mysql
+    image: ${IMG_REPO}/ts-wait-order-service:${IMG_TAG}
+    networks:
+    - my-network
+    ports:
+    - 17525:17525
+    restart: always

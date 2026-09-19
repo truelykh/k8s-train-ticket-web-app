@@ -1,0 +1,286 @@
+#re_book_dialog{
+    display: block;
+    white-space:nowrap;
+    overflow:auto;
+}
+#re_book_dialog ul li {
+    display: inline-block;
+    margin-right:10px;
+}
+
+#re_booking_list_table thead tr th {
+    font-size: 12px;
+}
+#re_booking_list_table tbody tr td {
+    font-size: 14px;
+    text-align:left;
+}
+
+.ad_search_panel{
+    font-size: 12px;
+}
+
+.collect_ticket{
+    font-size: 12px;
+}
+.ticket_enterstation{
+    font-size: 12px;
+}
+.change_cancel_table{
+    padding-right:10px;
+}
+#tickets_booking_list_table thead tr th {
+    font-size: 12px;
+}
+#tickets_booking_list_table tbody tr td {
+    font-size: 14px;
+    text-align:left;
+}
+
+#contacts_booking_list_table thead tr th {
+    font-size: 12px;
+}
+
+#contacts_booking_list_table  tbody tr td {
+    font-size: 14px;
+    text-align:left;
+}
+
+.control_label_ssurance {
+    font-size: 14px;
+}
+.need_food {
+    font-size: 14px;
+}
+.consign_ornot {
+    font-size: 14px;
+}
+.ticket-from-confirm .am-u-sm-5{
+    font-size: 12px;
+    text-align: center;
+    height: 26px;
+}
+.ticket-from-confirm .am-u-sm-7{
+    font-size: 12px;
+    text-align: center;
+    height: 26px;
+}
+.pay_from_fontsize {
+    font-size: 11px;
+}
+
+#my-svg {
+    position: fixed;
+    top: 200px;
+    left: 700px;
+    right: 700px;
+    width: 100px;
+    height: 100px;
+}
+#my-svg-change-order{
+    position: fixed;
+    top: 200px;
+    left: 700px;
+    right: 700px;
+    width: 100px;
+    height: 100px;
+}
+
+/* Booking experience refinements */
+:root {
+    --brand: #0c7c59;
+    --brand-dark: #075c42;
+    --brand-soft: #e8f5f0;
+    --surface: #ffffff;
+    --page: #f5f8f7;
+    --text: #1f2933;
+    --muted: #667085;
+    --border: #d9e2df;
+}
+
+body {
+    background: var(--page);
+    color: var(--text);
+    line-height: 1.5;
+}
+
+.tpl-content-wrapper {
+    min-height: calc(100vh - 64px);
+}
+
+.tpl-portlet-components,
+.flow_preserve.panel {
+    border-radius: 12px;
+}
+
+.flow_preserve.panel {
+    overflow: hidden;
+    border-color: var(--border);
+    box-shadow: 0 8px 24px rgba(30, 61, 51, 0.08);
+}
+
+.flow_preserve .panel-heading {
+    background: linear-gradient(135deg, var(--brand), #159570);
+    color: #fff;
+    border: 0;
+    padding: 16px 20px;
+}
+
+.flow_preserve .panel-title {
+    font-weight: 700;
+    letter-spacing: 0.01em;
+}
+
+/* Secondary section headers inside a card: lighter than the main gradient band */
+.panel-heading.booking {
+    background: var(--brand-soft);
+    color: var(--brand-dark);
+    border: 0;
+    border-top: 1px solid var(--border);
+    padding: 12px 24px;
+}
+
+.panel-heading.booking .panel-title {
+    font-weight: 700;
+}
+
+.booking {
+    padding: 24px;
+}
+
+.booking .form-control,
+.booking select {
+    min-height: 40px;
+    border-radius: 6px;
+    border-color: var(--border);
+}
+
+.booking .form-control:focus,
+.booking select:focus {
+    border-color: var(--brand);
+    box-shadow: 0 0 0 3px rgba(12, 124, 89, 0.15);
+}
+
+.booking .btn-primary,
+.booking .am-btn-primary {
+    background: var(--brand);
+    border-color: var(--brand);
+    border-radius: 6px;
+    font-weight: 600;
+}
+
+.booking .btn-primary:hover,
+.booking .am-btn-primary:hover,
+.booking .btn-primary:focus,
+.booking .am-btn-primary:focus {
+    background: var(--brand-dark);
+    border-color: var(--brand-dark);
+}
+
+/* Search form: flexible wrap instead of horizontal scroll so no control is cut off */
+#search_panel ul {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+#search_panel ul li {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 180px;
+    min-width: 170px;
+    margin: 0;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--muted);
+}
+
+#search_panel ul li.search-action {
+    flex: 0 0 auto;
+    justify-content: flex-end;
+}
+
+#search_panel ul li.search-action .btn {
+    min-height: 40px;
+    padding: 8px 24px;
+    align-self: stretch;
+}
+
+/* Keep the results table usable on narrow screens */
+.train-table-wrap {
+    overflow-x: auto;
+}
+
+#tickets_booking_list_table {
+    margin-bottom: 0;
+}
+
+#tickets_booking_list_table thead tr th {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--muted);
+    border-bottom: 2px solid var(--border);
+}
+
+#tickets_booking_list_table tbody tr:hover td {
+    background: #f3faf7;
+}
+
+.booking_tripId {
+    font-weight: 700;
+    color: var(--brand-dark);
+}
+
+.tpl-left-nav-title {
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.tpl-left-nav-link-list:hover,
+.tpl-left-nav-menu a.active {
+    color: var(--brand) !important;
+    background: var(--brand-soft);
+}
+
+.tpl-logo {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.tpl-logo img {
+    height: 32px;
+    width: auto;
+}
+
+.tpl-logo-text {
+    color: var(--brand-dark);
+    font-size: 18px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+}
+
+@media (max-width: 640px) {
+    .booking {
+        padding: 16px 12px;
+    }
+
+    #search_panel ul li {
+        flex: 1 1 100%;
+    }
+
+    #search_panel ul li.search-action .btn {
+        align-self: stretch;
+    }
+
+    .tpl-content-wrapper {
+        padding: 12px;
+    }
+}
