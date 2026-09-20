@@ -1,0 +1,35 @@
+pipeline {
+    agent any
+
+    environment {
+        GITHUB_CRED_ID = 'github-pat'
+        REPO_URL       = 'https://github.com/truelykh/k8s-train-ticket-web-app.git'
+        BRANCH         = 'main'
+    }
+
+    triggers {
+        githubPush()
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                git branch: env.BRANCH, credentialsId: env.GITHUB_CRED_ID, url: env.REPO_URL
+            }
+        }
+
+        stage('Deploy Nexus') {
+            steps {
+                sh 'kubectl apply -f "k8s manifests/nexusrepo-pod.yaml"'
+            }
+        }
+        stage('Verify Nexus') {
+            steps {
+                sh '''
+                    kubectl get pods -n nexus -o wide
+                    kubectl get svc -n nexus
+                '''
+            }
+        }
+    }
+}

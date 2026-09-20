@@ -1,0 +1,83 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  namespace: jenkins
+  name: jenkins-pod
+  labels:
+    app: jenkins-pod
+spec:
+  serviceAccountName: jenkins-sa
+  affinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+          - matchExpressions:
+              - key: workload
+                operator: In
+                values:
+                  - wnode1
+  containers:
+    - name: jenkins-server
+      image: jenkins/jenkins:lts
+      ports:
+        - containerPort: 8080
+          name: admin
+        - containerPort: 50000
+          name: agent
+      resources:
+        requests:
+          cpu: 250m
+          memory: 512Mi
+        limits:
+          cpu: 750m
+          memory: 1Gi
+      volumeMounts:
+        - name: jenkins-data
+          mountPath: /var/jenkins_home
+  volumes:
+    - name: jenkins-data
+      persistentVolumeClaim:
+        claimName: jenkins-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  namespace: jenkins
+  name: jenkins-pod-svc
+  labels:
+    app: jenkins-pod-svc
+spec:
+  selector:
+    app: jenkins-pod
+  type: NodePort
+  ports:
+    - name: admin
+      port: 8080
+      targetPort: 8080
+    - name: agent
+      port: 50000
+      targetPort: 50000
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  namespace: jenkins
+  name: jenkins-sa
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  namespace: jenkins
+  name: jenkins-pvc
+  labels:
+    app: jenkins-pvc
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: gp3
+  resources:
+    requests:
+      storage: 20Gi
+---
