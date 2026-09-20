@@ -1,4 +1,11 @@
 apiVersion: v1
+kind: ServiceAccount
+metadata:
+  namespace: argocd
+  name: argocd-sa
+
+---
+apiVersion: v1
 kind: Pod
 metadata:
   name: argocd
@@ -50,12 +57,5 @@ spec:
     - name: metrics
       port: 8003
       targetPort: 8003
-
----
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  namespace: argocd
-  name: argocd-sa
 
 ---
