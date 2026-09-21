@@ -1,0 +1,273 @@
+pipeline {
+    agent any
+
+    tools {
+        maven 'Maven-3.9'
+        jdk 'JDK-11'
+    }
+
+    parameters {
+        booleanParam(name: 'RUN_TESTS', defaultValue: true, description: 'Run unit tests and code coverage')
+        booleanParam(name: 'PUBLISH_JAR', defaultValue: true, description: 'Publish JAR artifact to Nexus Maven repository')
+        booleanParam(name: 'PUSH_IMAGE', defaultValue: true, description: 'Build and push Docker image to Nexus Registry')
+        booleanParam(name: 'SECURITY_SCAN', defaultValue: true, description: 'Execute Trivy vulnerability scanning on image')
+        booleanParam(name: 'AUTO_DEPLOY', defaultValue: true, description: 'Deploy updated manifest to Kubernetes cluster')
+    }
+
+    environment {
+        SERVICE_NAME          = 'ts-route-service'
+        APP_GROUP_ID          = 'org.services'
+        APP_DIR               = 'train ticket-source code'
+        K8S_MANIFEST_DIR      = 'k8s manifests'
+
+        GITHUB_CRED_ID        = 'github-pat'
+        REPO_URL              = 'https://github.com/truelykh/k8s-train-ticket-web-app.git'
+        BRANCH                = 'main'
+
+        NEXUS_CRED_ID         = 'nexus-credentials'
+        NEXUS_HOST            = 'nexus-svc.nexus.svc.cluster.local:8081'
+        NEXUS_DOCKER_REGISTRY = 'nexus-svc.nexus.svc.cluster.local:8082'
+        NEXUS_MAVEN_REPO      = 'maven-releases'
+        IMAGE_PREFIX          = 'truelykh'
+
+        IMAGE_TAG_VERSION     = "v${BUILD_NUMBER}"
+        GIT_SHORT_SHA         = ''
+        IMAGE_FULL_TAG        = ''
+    }
+
+    triggers {
+        githubPush()
+    }
+
+    options {
+        buildDiscarder(logRotator(numToKeepStr: '25', artifactNumToKeepStr: '10'))
+        timestamps()
+        timeout(time: 30, unit: 'MINUTES')
+        disableConcurrentBuilds()
+    }
+
+    stages {
+        stage('1. SCM Checkout') {
+            steps {
+                git branch: env.BRANCH,
+                    credentialsId: env.GITHUB_CRED_ID,
+                    url: env.REPO_URL
+
+                script {
+                    env.GIT_SHORT_SHA   = sh(script: 'git rev-parse --short HEAD', returnStdout: true).trim()
+                    env.IMAGE_FULL_TAG  = "1.0.${BUILD_NUMBER}-${env.GIT_SHORT_SHA}"
+                    currentBuild.displayName = "ts-route-service-#${BUILD_NUMBER} (${env.IMAGE_TAG_VERSION})"
+                }
+            }
+        }
+
+        stage('2. Build ts-common') {
+            when {
+                anyOf {
+                    changeset "train ticket-source code/ts-route-service/**"
+                    changeset "train ticket-source code/ts-common/**"
+                    changeset "train ticket-source code/pom.xml"
+                    triggeredBy 'UserIdCause'
+                }
+            }
+            steps {
+                dir(env.APP_DIR) {
+                    sh '''
+                        if [ -d "ts-common" ]; then
+                            mvn -pl ts-common clean install -DskipTests=true -Dcheckstyle.skip=true
+                        fi
+                    '''
+                }
+            }
+        }
+
+        stage('3. Compile') {
+            when {
+                anyOf {
+                    changeset "train ticket-source code/ts-route-service/**"
+                    changeset "train ticket-source code/ts-common/**"
+                    changeset "train ticket-source code/pom.xml"
+                    triggeredBy 'UserIdCause'
+                }
+            }
+            steps {
+                dir(env.APP_DIR) {
+                    sh "mvn -pl '${SERVICE_NAME}' clean compile -DskipTests=true"
+                }
+            }
+        }
+
+        stage('4. Unit Tests') {
+            when {
+                allOf {
+                    expression { return params.RUN_TESTS }
+                    anyOf {
+                        changeset "train ticket-source code/ts-route-service/**"
+                        changeset "train ticket-source code/ts-common/**"
+                        changeset "train ticket-source code/pom.xml"
+                        triggeredBy 'UserIdCause'
+                    }
+                }
+            }
+            steps {
+                dir(env.APP_DIR) {
+                    sh "mvn -pl '${SERVICE_NAME}' test || true"
+                }
+            }
+            post {
+                always {
+                    junit testResults: "${env.APP_DIR}/${env.SERVICE_NAME}/target/surefire-reports/*.xml", allowEmptyResults: true
+                }
+            }
+        }
+
+        stage('5. Package Binary') {
+            when {
+                anyOf {
+                    changeset "train ticket-source code/ts-route-service/**"
+                    changeset "train ticket-source code/ts-common/**"
+                    changeset "train ticket-source code/pom.xml"
+                    triggeredBy 'UserIdCause'
+                }
+            }
+            steps {
+                dir(env.APP_DIR) {
+                    sh "mvn -pl '${SERVICE_NAME}' package -DskipTests=true"
+                }
+            }
+        }
+
+        stage('6. Publish JAR to Nexus') {
+            when {
+                allOf {
+                    expression { return params.PUBLISH_JAR }
+                    anyOf {
+                        changeset "train ticket-source code/ts-route-service/**"
+                        changeset "train ticket-source code/ts-common/**"
+                        changeset "train ticket-source code/pom.xml"
+                        triggeredBy 'UserIdCause'
+                    }
+                }
+            }
+            steps {
+                dir("${env.APP_DIR}/${env.SERVICE_NAME}") {
+                    withCredentials([usernamePassword(credentialsId: env.NEXUS_CRED_ID, usernameVariable: 'NEXUS_USER', passwordVariable: 'NEXUS_PASS')]) {
+                        sh '''
+                            jarFile=$(find target -name "*.jar" ! -name "*-sources.jar" ! -name "*-javadoc.jar" | head -n 1)
+                            if [ -n "$jarFile" ]; then
+                                jarName=$(basename "$jarFile")
+                                curl -s -f -u "${NEXUS_USER}:${NEXUS_PASS}" \
+                                    --upload-file "$jarFile" \
+                                    "http://${NEXUS_HOST}/repository/${NEXUS_MAVEN_REPO}/org/services/${SERVICE_NAME}/${IMAGE_FULL_TAG}/${jarName}" || true
+                            fi
+                        '''
+                    }
+                }
+            }
+        }
+
+        stage('7. Build Docker Image') {
+            when {
+                allOf {
+                    expression { return params.PUSH_IMAGE }
+                    anyOf {
+                        changeset "train ticket-source code/ts-route-service/**"
+                        changeset "train ticket-source code/ts-common/**"
+                        changeset "train ticket-source code/pom.xml"
+                        triggeredBy 'UserIdCause'
+                    }
+                }
+            }
+            steps {
+                dir("${env.APP_DIR}/${env.SERVICE_NAME}") {
+                    sh '''
+                        nexusImage="${NEXUS_DOCKER_REGISTRY}/${IMAGE_PREFIX}/${SERVICE_NAME}:${IMAGE_TAG_VERSION}"
+                        nexusFull="${NEXUS_DOCKER_REGISTRY}/${IMAGE_PREFIX}/${SERVICE_NAME}:${IMAGE_FULL_TAG}"
+                        nexusLatest="${NEXUS_DOCKER_REGISTRY}/${IMAGE_PREFIX}/${SERVICE_NAME}:latest"
+
+                        docker build -t "${nexusImage}" -t "${nexusFull}" -t "${nexusLatest}" .
+                    '''
+                }
+            }
+        }
+
+        stage('8. Security Scan (Trivy)') {
+            when {
+                allOf {
+                    expression { return params.SECURITY_SCAN && params.PUSH_IMAGE }
+                    anyOf {
+                        changeset "train ticket-source code/ts-route-service/**"
+                        changeset "train ticket-source code/ts-common/**"
+                        changeset "train ticket-source code/pom.xml"
+                        triggeredBy 'UserIdCause'
+                    }
+                }
+            }
+            steps {
+                sh '''
+                    targetImg="${NEXUS_DOCKER_REGISTRY}/${IMAGE_PREFIX}/${SERVICE_NAME}:${IMAGE_TAG_VERSION}"
+                    if command -v trivy &> /dev/null; then
+                        trivy image --severity HIGH,CRITICAL --no-progress --exit-code 0 "${targetImg}"
+                    fi
+                '''
+            }
+        }
+
+        stage('9. Push Image to Nexus') {
+            when {
+                allOf {
+                    expression { return params.PUSH_IMAGE }
+                    anyOf {
+                        changeset "train ticket-source code/ts-route-service/**"
+                        changeset "train ticket-source code/ts-common/**"
+                        changeset "train ticket-source code/pom.xml"
+                        triggeredBy 'UserIdCause'
+                    }
+                }
+            }
+            steps {
+                withCredentials([usernamePassword(credentialsId: env.NEXUS_CRED_ID, usernameVariable: 'NEXUS_USER', passwordVariable: 'NEXUS_PASS')]) {
+                    sh '''
+                        echo "$NEXUS_PASS" | docker login -u "$NEXUS_USER" --password-stdin "$NEXUS_DOCKER_REGISTRY"
+                        docker push "${NEXUS_DOCKER_REGISTRY}/${IMAGE_PREFIX}/${SERVICE_NAME}:${IMAGE_TAG_VERSION}"
+                        docker push "${NEXUS_DOCKER_REGISTRY}/${IMAGE_PREFIX}/${SERVICE_NAME}:${IMAGE_FULL_TAG}"
+                        docker push "${NEXUS_DOCKER_REGISTRY}/${IMAGE_PREFIX}/${SERVICE_NAME}:latest"
+                    '''
+                }
+            }
+        }
+
+        stage('10. Deploy to Kubernetes') {
+            when {
+                allOf {
+                    expression { return params.AUTO_DEPLOY }
+                    anyOf {
+                        changeset "train ticket-source code/ts-route-service/**"
+                        changeset "train ticket-source code/ts-common/**"
+                        changeset "k8s manifests/microservices/ts-route-service.yaml"
+                        triggeredBy 'UserIdCause'
+                    }
+                }
+            }
+            steps {
+                sh '''
+                    manifestPath="${K8S_MANIFEST_DIR}/microservices/${SERVICE_NAME}.yaml"
+                    if [ -f "$manifestPath" ]; then
+                        # Dynamically update the manifest with the exact immutable image tag for GitOps traceability
+                        sed -i.bak "s|image: ${NEXUS_DOCKER_REGISTRY}/${IMAGE_PREFIX}/${SERVICE_NAME}:.*|image: ${NEXUS_DOCKER_REGISTRY}/${IMAGE_PREFIX}/${SERVICE_NAME}:${IMAGE_TAG_VERSION}|g" "$manifestPath"
+                        rm -f "${manifestPath}.bak"
+
+                        kubectl apply -f "$manifestPath"
+                        kubectl rollout status deployment/${SERVICE_NAME} -n train-ticket --timeout=120s || true
+                    fi
+                '''
+            }
+        }
+    }
+
+    post {
+        always {
+            cleanWs()
+        }
+    }
+}

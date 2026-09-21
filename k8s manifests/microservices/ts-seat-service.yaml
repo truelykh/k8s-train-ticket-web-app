@@ -1,0 +1,69 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ts-seat-service
+  namespace: train-ticket
+  labels:
+    app: ts-seat-service
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: ts-seat-service
+  template:
+    metadata:
+      labels:
+        app: ts-seat-service
+    spec:
+      serviceAccountName: train-ticket-sa
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              preference:
+                matchExpressions:
+                  - key: workload
+                    operator: In
+                    values:
+                      - wnode2
+                      - wnode3
+                      - wnode4
+      containers:
+        - name: ts-seat-service
+          image: nexus-svc.nexus.svc.cluster.local:8082/truelykh/ts-seat-service:1.0.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 18898
+              name: http
+          env:
+            - name: NACOS_ADDRS
+              value: "nacos:8848"
+            - name: SPRING_PROFILES_ACTIVE
+              value: "docker"
+            - name: JAVA_OPTS
+              value: "-Xms32m -Xmx120m -XX:+UseSerialGC -XX:+TieredCompilation -XX:TieredStopAtLevel=1 -XX:+ExitOnOutOfMemoryError"
+          resources:
+            requests:
+              cpu: 20m
+              memory: 120Mi
+            limits:
+              cpu: 150m
+              memory: 190Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ts-seat-service
+  namespace: train-ticket
+  labels:
+    app: ts-seat-service
+spec:
+  type: ClusterIP
+  selector:
+    app: ts-seat-service
+  ports:
+    - name: http
+      port: 18898
+      targetPort: 18898

@@ -1,0 +1,69 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ts-preserve-other-service
+  namespace: train-ticket
+  labels:
+    app: ts-preserve-other-service
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: ts-preserve-other-service
+  template:
+    metadata:
+      labels:
+        app: ts-preserve-other-service
+    spec:
+      serviceAccountName: train-ticket-sa
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              preference:
+                matchExpressions:
+                  - key: workload
+                    operator: In
+                    values:
+                      - wnode2
+                      - wnode3
+                      - wnode4
+      containers:
+        - name: ts-preserve-other-service
+          image: nexus-svc.nexus.svc.cluster.local:8082/truelykh/ts-preserve-other-service:1.0.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 14569
+              name: http
+          env:
+            - name: NACOS_ADDRS
+              value: "nacos:8848"
+            - name: SPRING_PROFILES_ACTIVE
+              value: "docker"
+            - name: JAVA_OPTS
+              value: "-Xms48m -Xmx140m -XX:+UseSerialGC -XX:+TieredCompilation -XX:TieredStopAtLevel=1 -XX:+ExitOnOutOfMemoryError"
+          resources:
+            requests:
+              cpu: 35m
+              memory: 150Mi
+            limits:
+              cpu: 200m
+              memory: 220Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ts-preserve-other-service
+  namespace: train-ticket
+  labels:
+    app: ts-preserve-other-service
+spec:
+  type: ClusterIP
+  selector:
+    app: ts-preserve-other-service
+  ports:
+    - name: http
+      port: 14569
+      targetPort: 14569

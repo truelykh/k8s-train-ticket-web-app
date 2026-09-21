@@ -1,0 +1,69 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ts-consign-price-service
+  namespace: train-ticket
+  labels:
+    app: ts-consign-price-service
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: ts-consign-price-service
+  template:
+    metadata:
+      labels:
+        app: ts-consign-price-service
+    spec:
+      serviceAccountName: train-ticket-sa
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              preference:
+                matchExpressions:
+                  - key: workload
+                    operator: In
+                    values:
+                      - wnode2
+                      - wnode3
+                      - wnode4
+      containers:
+        - name: ts-consign-price-service
+          image: nexus-svc.nexus.svc.cluster.local:8082/truelykh/ts-consign-price-service:1.0.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 16110
+              name: http
+          env:
+            - name: NACOS_ADDRS
+              value: "nacos:8848"
+            - name: SPRING_PROFILES_ACTIVE
+              value: "docker"
+            - name: JAVA_OPTS
+              value: "-Xms32m -Xmx120m -XX:+UseSerialGC -XX:+TieredCompilation -XX:TieredStopAtLevel=1 -XX:+ExitOnOutOfMemoryError"
+          resources:
+            requests:
+              cpu: 20m
+              memory: 120Mi
+            limits:
+              cpu: 150m
+              memory: 190Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ts-consign-price-service
+  namespace: train-ticket
+  labels:
+    app: ts-consign-price-service
+spec:
+  type: ClusterIP
+  selector:
+    app: ts-consign-price-service
+  ports:
+    - name: http
+      port: 16110
+      targetPort: 16110

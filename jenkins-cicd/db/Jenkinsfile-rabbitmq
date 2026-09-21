@@ -1,0 +1,43 @@
+pipeline {
+    agent any
+
+    environment {
+        GITHUB_CRED_ID = 'github-pat'
+        REPO_URL       = 'https://github.com/truelykh/k8s-train-ticket-web-app.git'
+        BRANCH         = 'main'
+    }
+
+    triggers {
+        githubPush()
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                git branch: env.BRANCH, credentialsId: env.GITHUB_CRED_ID, url: env.REPO_URL
+            }
+        }
+
+        stage('Deploy RabbitMQ') {
+            steps {
+                sh 'kubectl apply -f "k8s manifests/db/rabbitmq.yaml"'
+            }
+        }
+
+        stage('Verify RabbitMQ') {
+            steps {
+                sh '''
+                    kubectl rollout status deployment/rabbitmq -n train-ticket --timeout=120s
+                    kubectl get pods -n train-ticket -l app=rabbitmq -o wide
+                    kubectl get svc -n train-ticket -l app=rabbitmq
+                '''
+            }
+        }
+    }
+
+    post {
+        always {
+            cleanWs()
+        }
+    }
+}

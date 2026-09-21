@@ -1,0 +1,68 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ts-ui-dashboard
+  namespace: train-ticket
+  labels:
+    app: ts-ui-dashboard
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: ts-ui-dashboard
+  template:
+    metadata:
+      labels:
+        app: ts-ui-dashboard
+    spec:
+      serviceAccountName: train-ticket-sa
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              preference:
+                matchExpressions:
+                  - key: workload
+                    operator: In
+                    values:
+                      - wnode2
+                      - wnode3
+                      - wnode4
+      containers:
+        - name: ts-ui-dashboard
+          image: nexus-svc.nexus.svc.cluster.local:8082/truelykh/ts-ui-dashboard:1.0.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+              name: http
+          env:
+            - name: NACOS_ADDRS
+              value: "nacos:8848"
+            - name: SPRING_PROFILES_ACTIVE
+              value: "docker"
+
+          resources:
+            requests:
+              cpu: 25m
+              memory: 48Mi
+            limits:
+              cpu: 100m
+              memory: 96Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ts-ui-dashboard
+  namespace: train-ticket
+  labels:
+    app: ts-ui-dashboard
+spec:
+  type: NodePort
+  selector:
+    app: ts-ui-dashboard
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080

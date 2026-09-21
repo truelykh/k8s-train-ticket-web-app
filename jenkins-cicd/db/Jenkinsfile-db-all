@@ -1,0 +1,63 @@
+pipeline {
+    agent any
+
+    environment {
+        GITHUB_CRED_ID = 'github-pat'
+        REPO_URL       = 'https://github.com/truelykh/k8s-train-ticket-web-app.git'
+        BRANCH         = 'main'
+        DB_DIR         = 'k8s manifests/db'
+    }
+
+    triggers {
+        githubPush()
+    }
+
+    options {
+        buildDiscarder(logRotator(numToKeepStr: '15'))
+        timestamps()
+        timeout(time: 15, unit: 'MINUTES')
+        disableConcurrentBuilds()
+    }
+
+    stages {
+        stage('1. Checkout') {
+            steps {
+                git branch: env.BRANCH, credentialsId: env.GITHUB_CRED_ID, url: env.REPO_URL
+            }
+        }
+
+        stage('2. Deploy Databases to Node 5') {
+            steps {
+                sh '''
+                    echo "Deploying databases and middlewares to Node 5 (wnode5)..."
+                    kubectl apply -f "${DB_DIR}/nacos.yaml"
+                    kubectl apply -f "${DB_DIR}/rabbitmq.yaml"
+                    kubectl apply -f "${DB_DIR}/redis.yaml"
+                    kubectl apply -f "${DB_DIR}/ts-mongo.yaml"
+                '''
+            }
+        }
+
+        stage('3. Verify Database Rollouts') {
+            steps {
+                sh '''
+                    echo "Checking rollout status in train-ticket namespace..."
+                    kubectl rollout status deployment/nacos -n train-ticket --timeout=120s
+                    kubectl rollout status deployment/rabbitmq -n train-ticket --timeout=120s
+                    kubectl rollout status deployment/redis -n train-ticket --timeout=120s
+                    kubectl rollout status deployment/ts-mongo -n train-ticket --timeout=120s
+
+                    echo "Database Pods & Services Status:"
+                    kubectl get pods -n train-ticket -l 'app in (nacos,rabbitmq,redis,ts-mongo)' -o wide
+                    kubectl get svc -n train-ticket -l 'app in (nacos,rabbitmq,redis,ts-mongo)'
+                '''
+            }
+        }
+    }
+
+    post {
+        always {
+            cleanWs()
+        }
+    }
+}
