@@ -30,7 +30,7 @@ spec:
     fsGroupChangePolicy: OnRootMismatch
   containers:
     - name: jenkins-server
-      image: jenkins/jenkins:lts
+      image: ghcr.io/truelykh/jenkins:1.0
       ports:
         - containerPort: 8080
           name: admin
