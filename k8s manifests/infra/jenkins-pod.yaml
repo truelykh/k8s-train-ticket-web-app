@@ -14,6 +14,8 @@ metadata:
     app: jenkins-pod
 spec:
   serviceAccountName: jenkins-sa
+  imagePullSecrets:
+    - name: ghcr-secret
   affinity:
     nodeAffinity:
       requiredDuringSchedulingIgnoredDuringExecution:
@@ -31,6 +33,7 @@ spec:
   containers:
     - name: jenkins-server
       image: ghcr.io/truelykh/jenkins:1.0
+      imagePullPolicy: IfNotPresent
       ports:
         - containerPort: 8080
           name: admin
@@ -66,12 +69,10 @@ spec:
       ports:
         - containerPort: 2375
           name: docker
-
   volumes:
     - name: jenkins-data
       persistentVolumeClaim:
         claimName: jenkins-pvc
-
 ---
 apiVersion: v1
 kind: Service
@@ -100,10 +101,13 @@ metadata:
   name: jenkins-pvc
   labels:
     app: jenkins-pvc
+
 spec:
   accessModes:
     - ReadWriteOnce
+
   storageClassName: gp3
+
   resources:
     requests:
       storage: 20Gi
