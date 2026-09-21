@@ -24,6 +24,8 @@ spec:
                 values:
                   - wnode1
   securityContext:
+    runAsUser: 0
+    runAsGroup: 0
     fsGroup: 1000
     fsGroupChangePolicy: OnRootMismatch
   containers:
@@ -47,7 +49,6 @@ spec:
       volumeMounts:
         - name: jenkins-data
           mountPath: /var/jenkins_home
-
     - name: docker
       image: docker:27-dind
       securityContext:

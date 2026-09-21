@@ -1,0 +1,28 @@
+FROM debian:bookworm-slim AS tools
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+    maven \
+    curl \
+    ca-certificates \
+    && curl -fsSL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh \
+    | sh -s -- -b /usr/local/bin \
+    && rm -rf /var/lib/apt/lists/*
+
+
+FROM jenkins/jenkins:lts-jdk21
+USER root
+
+# Maven
+COPY --from=tools /usr/bin/mvn /usr/bin/mvn
+COPY --from=tools /usr/share/maven /usr/share/maven
+
+# Trivy
+COPY --from=tools /usr/local/bin/trivy /usr/local/bin/trivy
+
+# Docker CLI
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends docker.io \
+    && rm -rf /var/lib/apt/lists/*
+
+USER jenkins
