@@ -1,24 +1,14 @@
 pipeline {
     agent any
 
-    tools {
-        maven 'Maven-3.9'
-        jdk 'JDK-11'
-    }
-
-    parameters {
-        booleanParam(name: 'RUN_TESTS', defaultValue: true, description: 'Run unit tests and code coverage')
-        booleanParam(name: 'PUBLISH_JAR', defaultValue: true, description: 'Publish JAR artifact to Nexus Maven repository')
-        booleanParam(name: 'PUSH_IMAGE', defaultValue: true, description: 'Build and push Docker image to Nexus Registry')
-        booleanParam(name: 'SECURITY_SCAN', defaultValue: true, description: 'Execute Trivy vulnerability scanning on image')
-        booleanParam(name: 'AUTO_DEPLOY', defaultValue: true, description: 'Deploy updated manifest to Kubernetes cluster')
-    }
-
     environment {
         SERVICE_NAME          = 'ts-travel-service'
         APP_GROUP_ID          = 'org.services'
+        APP_VERSION           = '0.1.0'
         APP_DIR               = 'train ticket-source code'
         K8S_MANIFEST_DIR      = 'k8s manifests'
+
+        DOCKER_HOST           = 'tcp://localhost:2375'
 
         GITHUB_CRED_ID        = 'github-pat'
         REPO_URL              = 'https://github.com/truelykh/k8s-train-ticket-web-app.git'
@@ -33,6 +23,14 @@ pipeline {
         IMAGE_TAG_VERSION     = "v${BUILD_NUMBER}"
         GIT_SHORT_SHA         = ''
         IMAGE_FULL_TAG        = ''
+    }
+
+    parameters {
+        booleanParam(name: 'RUN_TESTS',     defaultValue: true, description: 'Run unit tests and code coverage')
+        booleanParam(name: 'PUBLISH_JAR',   defaultValue: true, description: 'Publish JAR artifact to Nexus Maven repository')
+        booleanParam(name: 'PUSH_IMAGE',    defaultValue: true, description: 'Build and push Docker image to Nexus Registry')
+        booleanParam(name: 'SECURITY_SCAN', defaultValue: true, description: 'Execute Trivy vulnerability scanning on image')
+        booleanParam(name: 'AUTO_DEPLOY',   defaultValue: true, description: 'Commit updated manifest and trigger Argo CD GitOps sync')
     }
 
     triggers {
@@ -54,14 +52,14 @@ pipeline {
                     url: env.REPO_URL
 
                 script {
-                    env.GIT_SHORT_SHA   = sh(script: 'git rev-parse --short HEAD', returnStdout: true).trim()
-                    env.IMAGE_FULL_TAG  = "1.0.${BUILD_NUMBER}-${env.GIT_SHORT_SHA}"
+                    env.GIT_SHORT_SHA  = sh(script: 'git rev-parse --short HEAD', returnStdout: true).trim()
+                    env.IMAGE_FULL_TAG = "${APP_VERSION}.${BUILD_NUMBER}-${env.GIT_SHORT_SHA}"
                     currentBuild.displayName = "ts-travel-service-#${BUILD_NUMBER} (${env.IMAGE_TAG_VERSION})"
                 }
             }
         }
 
-        stage('2. Build ts-common') {
+        stage('2. Build & Package') {
             when {
                 anyOf {
                     changeset "train ticket-source code/ts-travel-service/**"
@@ -72,32 +70,12 @@ pipeline {
             }
             steps {
                 dir(env.APP_DIR) {
-                    sh '''
-                        if [ -d "ts-common" ]; then
-                            mvn -pl ts-common clean install -DskipTests=true -Dcheckstyle.skip=true
-                        fi
-                    '''
+                    sh "mvn -B -pl '${SERVICE_NAME}' -am clean install -DskipTests=true -Dcheckstyle.skip=true"
                 }
             }
         }
 
-        stage('3. Compile') {
-            when {
-                anyOf {
-                    changeset "train ticket-source code/ts-travel-service/**"
-                    changeset "train ticket-source code/ts-common/**"
-                    changeset "train ticket-source code/pom.xml"
-                    triggeredBy 'UserIdCause'
-                }
-            }
-            steps {
-                dir(env.APP_DIR) {
-                    sh "mvn -pl '${SERVICE_NAME}' clean compile -DskipTests=true"
-                }
-            }
-        }
-
-        stage('4. Unit Tests') {
+        stage('3. Unit Tests') {
             when {
                 allOf {
                     expression { return params.RUN_TESTS }
@@ -111,7 +89,7 @@ pipeline {
             }
             steps {
                 dir(env.APP_DIR) {
-                    sh "mvn -pl '${SERVICE_NAME}' test || true"
+                    sh "mvn -B -pl '${SERVICE_NAME}' test || true"
                 }
             }
             post {
@@ -121,23 +99,7 @@ pipeline {
             }
         }
 
-        stage('5. Package Binary') {
-            when {
-                anyOf {
-                    changeset "train ticket-source code/ts-travel-service/**"
-                    changeset "train ticket-source code/ts-common/**"
-                    changeset "train ticket-source code/pom.xml"
-                    triggeredBy 'UserIdCause'
-                }
-            }
-            steps {
-                dir(env.APP_DIR) {
-                    sh "mvn -pl '${SERVICE_NAME}' package -DskipTests=true"
-                }
-            }
-        }
-
-        stage('6. Publish JAR to Nexus') {
+        stage('4. Publish JAR to Nexus') {
             when {
                 allOf {
                     expression { return params.PUBLISH_JAR }
@@ -153,12 +115,13 @@ pipeline {
                 dir("${env.APP_DIR}/${env.SERVICE_NAME}") {
                     withCredentials([usernamePassword(credentialsId: env.NEXUS_CRED_ID, usernameVariable: 'NEXUS_USER', passwordVariable: 'NEXUS_PASS')]) {
                         sh '''
+                            groupPath=$(echo "${APP_GROUP_ID}" | tr '.' '/')
                             jarFile=$(find target -name "*.jar" ! -name "*-sources.jar" ! -name "*-javadoc.jar" | head -n 1)
                             if [ -n "$jarFile" ]; then
                                 jarName=$(basename "$jarFile")
                                 curl -s -f -u "${NEXUS_USER}:${NEXUS_PASS}" \
                                     --upload-file "$jarFile" \
-                                    "http://${NEXUS_HOST}/repository/${NEXUS_MAVEN_REPO}/org/services/${SERVICE_NAME}/${IMAGE_FULL_TAG}/${jarName}" || true
+                                    "http://${NEXUS_HOST}/repository/${NEXUS_MAVEN_REPO}/${groupPath}/${SERVICE_NAME}/${APP_VERSION}/${jarName}" || true
                             fi
                         '''
                     }
@@ -166,7 +129,7 @@ pipeline {
             }
         }
 
-        stage('7. Build Docker Image') {
+        stage('5. Build Docker Image') {
             when {
                 allOf {
                     expression { return params.PUSH_IMAGE }
@@ -191,7 +154,7 @@ pipeline {
             }
         }
 
-        stage('8. Security Scan (Trivy)') {
+        stage('6. Security Scan (Trivy)') {
             when {
                 allOf {
                     expression { return params.SECURITY_SCAN && params.PUSH_IMAGE }
@@ -206,14 +169,14 @@ pipeline {
             steps {
                 sh '''
                     targetImg="${NEXUS_DOCKER_REGISTRY}/${IMAGE_PREFIX}/${SERVICE_NAME}:${IMAGE_TAG_VERSION}"
-                    if command -v trivy &> /dev/null; then
+                    if command -v trivy > /dev/null 2>&1; then
                         trivy image --severity HIGH,CRITICAL --no-progress --exit-code 0 "${targetImg}"
                     fi
                 '''
             }
         }
 
-        stage('9. Push Image to Nexus') {
+        stage('7. Push Image to Nexus') {
             when {
                 allOf {
                     expression { return params.PUSH_IMAGE }
@@ -237,7 +200,7 @@ pipeline {
             }
         }
 
-        stage('10. Deploy to Kubernetes') {
+        stage('8. Update Git Manifest (GitOps)') {
             when {
                 allOf {
                     expression { return params.AUTO_DEPLOY }
@@ -250,17 +213,23 @@ pipeline {
                 }
             }
             steps {
-                sh '''
-                    manifestPath="${K8S_MANIFEST_DIR}/microservices/${SERVICE_NAME}.yaml"
-                    if [ -f "$manifestPath" ]; then
-                        # Dynamically update the manifest with the exact immutable image tag for GitOps traceability
-                        sed -i.bak "s|image: ${NEXUS_DOCKER_REGISTRY}/${IMAGE_PREFIX}/${SERVICE_NAME}:.*|image: ${NEXUS_DOCKER_REGISTRY}/${IMAGE_PREFIX}/${SERVICE_NAME}:${IMAGE_TAG_VERSION}|g" "$manifestPath"
-                        rm -f "${manifestPath}.bak"
+                withCredentials([usernamePassword(credentialsId: env.GITHUB_CRED_ID, usernameVariable: 'GIT_USER', passwordVariable: 'GIT_TOKEN')]) {
+                    sh '''
+                        manifestPath="${K8S_MANIFEST_DIR}/microservices/${SERVICE_NAME}.yaml"
+                        if [ -f "$manifestPath" ]; then
+                            sed -i.bak "s|image: ${NEXUS_DOCKER_REGISTRY}/${IMAGE_PREFIX}/${SERVICE_NAME}:.*|image: ${NEXUS_DOCKER_REGISTRY}/${IMAGE_PREFIX}/${SERVICE_NAME}:${IMAGE_TAG_VERSION}|g" "$manifestPath"
+                            rm -f "${manifestPath}.bak"
 
-                        kubectl apply -f "$manifestPath"
-                        kubectl rollout status deployment/${SERVICE_NAME} -n train-ticket --timeout=120s || true
-                    fi
-                '''
+                            git config user.email "jenkins@ci.local"
+                            git config user.name "Jenkins CI"
+                            git add "$manifestPath"
+                            if ! git diff --cached --quiet; then
+                                git commit -m "ci: update ${SERVICE_NAME} image to ${IMAGE_TAG_VERSION} [skip ci]"
+                                git push "https://${GIT_USER}:${GIT_TOKEN}@github.com/truelykh/k8s-train-ticket-web-app.git" "${BRANCH}"
+                            fi
+                        fi
+                    '''
+                }
             }
         }
     }
