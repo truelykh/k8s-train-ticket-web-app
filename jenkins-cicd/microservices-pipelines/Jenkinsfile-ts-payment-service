@@ -52,9 +52,10 @@ pipeline {
                     url: env.REPO_URL
 
                 script {
-                    env.GIT_SHORT_SHA  = sh(script: 'git rev-parse --short HEAD', returnStdout: true).trim()
-                    env.IMAGE_FULL_TAG = "${APP_VERSION}.${BUILD_NUMBER}-${env.GIT_SHORT_SHA}"
-                    currentBuild.displayName = "ts-payment-service-#${BUILD_NUMBER} (${env.IMAGE_TAG_VERSION})"
+                    def sha = sh(script: 'git rev-parse --short HEAD', returnStdout: true).trim()
+                    env.GIT_SHORT_SHA  = sha
+                    env.IMAGE_FULL_TAG = "${env.IMAGE_TAG_VERSION}-${sha}"
+                    currentBuild.displayName = "${env.SERVICE_NAME}-#${BUILD_NUMBER} (${env.IMAGE_TAG_VERSION})"
                 }
             }
         }
