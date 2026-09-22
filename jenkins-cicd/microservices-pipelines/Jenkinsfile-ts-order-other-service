@@ -20,7 +20,7 @@ pipeline {
         NEXUS_MAVEN_REPO      = 'maven-releases'
         IMAGE_PREFIX          = 'truelykh'
 
-        IMAGE_TAG_VERSION     = "v${BUILD_NUMBER}"
+        IMAGE_TAG_VERSION     = "${BUILD_NUMBER}"
         GIT_SHORT_SHA         = ''
         IMAGE_FULL_TAG        = ''
     }
@@ -147,9 +147,8 @@ pipeline {
                     sh '''
                         nexusImage="${NEXUS_DOCKER_REGISTRY}/${IMAGE_PREFIX}/${SERVICE_NAME}:${IMAGE_TAG_VERSION}"
                         nexusFull="${NEXUS_DOCKER_REGISTRY}/${IMAGE_PREFIX}/${SERVICE_NAME}:${IMAGE_FULL_TAG}"
-                        nexusLatest="${NEXUS_DOCKER_REGISTRY}/${IMAGE_PREFIX}/${SERVICE_NAME}:latest"
 
-                        docker build -t "${nexusImage}" -t "${nexusFull}" -t "${nexusLatest}" .
+                        docker build -t "${nexusImage}" -t "${nexusFull}" .
                     '''
                 }
             }
@@ -195,7 +194,6 @@ pipeline {
                         echo "$NEXUS_PASS" | docker login -u "$NEXUS_USER" --password-stdin "$NEXUS_DOCKER_REGISTRY"
                         docker push "${NEXUS_DOCKER_REGISTRY}/${IMAGE_PREFIX}/${SERVICE_NAME}:${IMAGE_TAG_VERSION}"
                         docker push "${NEXUS_DOCKER_REGISTRY}/${IMAGE_PREFIX}/${SERVICE_NAME}:${IMAGE_FULL_TAG}"
-                        docker push "${NEXUS_DOCKER_REGISTRY}/${IMAGE_PREFIX}/${SERVICE_NAME}:latest"
                     '''
                 }
             }
