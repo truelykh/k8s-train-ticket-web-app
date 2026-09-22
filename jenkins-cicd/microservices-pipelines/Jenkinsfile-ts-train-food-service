@@ -89,7 +89,7 @@ pipeline {
             }
             steps {
                 dir(env.APP_DIR) {
-                    sh "mvn -B -pl '${SERVICE_NAME}' test || true"
+                    sh "mvn -B -pl '${SERVICE_NAME}' test"
                 }
             }
             post {
